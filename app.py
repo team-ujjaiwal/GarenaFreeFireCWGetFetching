@@ -6,7 +6,6 @@ import time
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
 from GetWishListItems_pb2 import CSGetWishListItemsRes
-from freefire_pb2 import Player, Getliked
 from datetime import datetime
 
 app = Flask(__name__)
@@ -89,65 +88,6 @@ token_thread.start()
 get_jwt_token()
 
 ####################################
-def get_player_info(uid):
-    global jwt_token
-    if not jwt_token:
-        return None, None
-    
-    try:
-        # First get player basic info
-        encrypted_id = Encrypt_ID(uid)
-        encrypted_api = encrypt_api(f"03{encrypted_id}1001")  # Example pattern for player info
-        
-        player_url = "https://client.ind.freefiremobile.com/GetPlayerInfo"
-        headers = {
-            "Authorization": f"Bearer {jwt_token}",
-            "X-Unity-Version": "2018.4.11f1",
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        
-        player_response = requests.post(
-            player_url,
-            headers=headers,
-            data=bytes.fromhex(encrypted_api),
-            verify=False
-        )
-        
-        player = Player()
-        player.ParseFromString(player_response.content)
-        
-        # Then get liked count
-        liked_encrypted = encrypt_api(f"07{encrypted_id}1005")  # Example pattern for liked count
-        liked_url = "https://client.ind.freefiremobile.com/GetLikedCount"
-        
-        liked_response = requests.post(
-            liked_url,
-            headers=headers,
-            data=bytes.fromhex(liked_encrypted),
-            verify=False
-        )
-        
-        liked = Getliked()
-        liked.ParseFromString(liked_response.content)
-        
-        return player, liked
-        
-    except Exception as e:
-        print(f"Error fetching player info: {e}")
-        # Return mock data if API fails
-        player = Player()
-        player.accountId = uid
-        player.nickname = "GM?"
-        player.region = "IND"
-        player.level = 74
-        player.lastLogin = int(time.time())
-        
-        liked = Getliked()
-        liked.liked = 1297897
-        
-        return player, liked
-
-####################################
 @app.route('/wishlist/<int:uid>', methods=['GET'])
 def get_wishlist(uid):
     global jwt_token
@@ -155,11 +95,6 @@ def get_wishlist(uid):
         return jsonify({"error": "JWT token is missing or invalid"}), 500
     
     try:
-        # Get player information
-        player, liked = get_player_info(uid)
-        if not player or not liked:
-            return jsonify({"error": "Failed to fetch player information"}), 500
-        
         # Get wishlist items
         encrypted_id = Encrypt_ID(uid)
         encrypted_api = encrypt_api(f"08{encrypted_id}1007")
@@ -191,14 +126,6 @@ def get_wishlist(uid):
         
         # Prepare the response
         response_data = {
-            "playerBasicInfo": {
-                "nickname": player.nickname,
-                "region": player.region,
-                "uid": player.accountId,
-                "like": liked.liked,
-                "level": player.level,
-                "lastLogin": convert_timestamp(player.lastLogin)
-            },
             "results": [{
                 "wishlist": [{
                     "Count": len(item_ids),
