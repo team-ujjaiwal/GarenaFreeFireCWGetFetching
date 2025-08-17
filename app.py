@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import requests
 import threading
 import httpx
@@ -9,6 +9,96 @@ from GetWishListItems_pb2 import CSGetWishListItemsRes
 from datetime import datetime
 
 app = Flask(__name__)
+
+# Region credentials
+CREDENTIALS = {
+    "IND": {
+        "uid": "3892341508",
+        "password": "B78C0F8F5A2FDA93948C2966DE26DD7A0681EF6C2F09A5C10629E50C4D6341B4",
+        "url": "https://client.ind.freefiremobile.com/GetWishListItems"
+    },
+    "SG": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "NA": {
+        "uid": "3943737998",
+        "password": "92EB4C721DB698B17C1BF61F8F7ECDEC55D814FB35ADA778FA5EE1DC0AEAEDFF",
+        "url": "https://client.us.freefiremobile.com/GetWishListItems"
+    },
+    "BR": {
+        "uid": "3943737998",
+        "password": "92EB4C721DB698B17C1BF61F8F7ECDEC55D814FB35ADA778FA5EE1DC0AEAEDFF",
+        "url": "https://client.us.freefiremobile.com/GetWishListItems"
+    },
+    "SAC": {
+        "uid": "3943737998",
+        "password": "92EB4C721DB698B17C1BF61F8F7ECDEC55D814FB35ADA778FA5EE1DC0AEAEDFF",
+        "url": "https://client.us.freefiremobile.com/GetWishListItems"
+    },
+    "US": {
+        "uid": "3943737998",
+        "password": "92EB4C721DB698B17C1BF61F8F7ECDEC55D814FB35ADA778FA5EE1DC0AEAEDFF",
+        "url": "https://client.us.freefiremobile.com/GetWishListItems"
+    },
+    "ID": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "TW": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "TH": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "BD": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "ME": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "RU": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "VN": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "PK": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "CIS": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+    "EUROPE": {
+        "uid": "3943739516",
+        "password": "BFA0A0D9DF6D4EE1AA92354746475A429D775BCA4D8DD822ECBC6D0BF7B51886",
+        "url": "https://clientbp.ggblueshark.com/GetWishListItems"
+    },
+}
+
+# JWT generate URL
+JWT_URL = "https://project-jwt-token-ujjaiwal.vercel.app/token"
+
+# API Key
+API_KEY = "1yearskeysforujjaiwal"
 
 ####################################
 def Encrypt_ID(x):
@@ -57,42 +147,65 @@ def generate_image_urls(item_ids):
     return [f"{base_url}{item_id}.png" for item_id in item_ids.split(", ")]
 
 ####################################
-jwt_token = None
+jwt_tokens = {}
 
-def get_jwt_token():
-    global jwt_token
-    url = "https://project-jwt-token-ujjaiwal.vercel.app/token?uid=3892341508&password=B78C0F8F5A2FDA93948C2966DE26DD7A0681EF6C2F09A5C10629E50C4D6341B4"
+def get_jwt_token(region):
+    global jwt_tokens
+    if region not in CREDENTIALS:
+        return None
+        
+    creds = CREDENTIALS[region]
+    url = f"{JWT_URL}?uid={creds['uid']}&password={creds['password']}"
+    
     try:
-        print(f"Fetching JWT token from: {url}")
+        print(f"Fetching JWT token for {region} from: {url}")
         response = httpx.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
             status = data.get("status")
             if status in ["success", "live"]:
-                jwt_token = data["token"]
-                print("✅ JWT Token updated successfully.")
+                jwt_tokens[region] = data["token"]
+                print(f"✅ {region} JWT Token updated successfully.")
+                return data["token"]
             else:
-                print(f"❌ Failed: status = {status}")
+                print(f"❌ Failed for {region}: status = {status}")
         else:
-            print(f"❌ HTTP Error: {response.status_code}")
+            print(f"❌ HTTP Error for {region}: {response.status_code}")
     except Exception as e:
-        print(f"❌ Exception while fetching token: {e}")
+        print(f"❌ Exception while fetching token for {region}: {e}")
+    
+    return None
 
 def token_updater():
     while True:
-        get_jwt_token()
-        time.sleep(8 * 3600)
+        for region in CREDENTIALS.keys():
+            get_jwt_token(region)
+        time.sleep(8 * 3600)  # Update every 8 hours
 
 token_thread = threading.Thread(target=token_updater, daemon=True)
 token_thread.start()
-get_jwt_token()
+
+# Initialize tokens for all regions
+for region in CREDENTIALS.keys():
+    get_jwt_token(region)
 
 ####################################
 @app.route('/wishlist/<int:uid>', methods=['GET'])
 def get_wishlist(uid):
-    global jwt_token
+    region = request.args.get('region', 'IND').upper()
+    key = request.args.get('key')
+    
+    if key != API_KEY:
+        return jsonify({"error": "Invalid API key"}), 401
+        
+    if region not in CREDENTIALS:
+        return jsonify({"error": f"Unsupported region '{region}'"}), 400
+    
+    jwt_token = jwt_tokens.get(region)
     if not jwt_token:
-        return jsonify({"error": "JWT token is missing or invalid"}), 500
+        jwt_token = get_jwt_token(region)
+        if not jwt_token:
+            return jsonify({"error": f"Failed to get JWT token for {region}"}), 500
     
     try:
         # Get wishlist items
@@ -100,7 +213,7 @@ def get_wishlist(uid):
         encrypted_api = encrypt_api(f"08{encrypted_id}1007")
         TARGET = bytes.fromhex(encrypted_api)
         
-        url = "https://client.ind.freefiremobile.com/GetWishListItems"
+        url = CREDENTIALS[region]["url"]
         headers = {
             "Authorization": f"Bearer {jwt_token}",
             "X-Unity-Version": "2018.4.11f1",
@@ -108,7 +221,7 @@ def get_wishlist(uid):
             "ReleaseVersion": "OB50",
             "Content-Type": "application/x-www-form-urlencoded",
             "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 9; SM-N975F Build/PI)",
-            "Host": "clientbp.common.ggbluefox.com",
+            "Host": url.split("//")[1].split("/")[0],
             "Connection": "close",
             "Accept-Encoding": "gzip, deflate, br",
         }
@@ -126,6 +239,7 @@ def get_wishlist(uid):
         
         # Prepare the response
         response_data = {
+            "region": region,
             "results": [{
                 "wishlist": [{
                     "Count": len(item_ids),
@@ -141,7 +255,8 @@ def get_wishlist(uid):
     except Exception as e:
         return jsonify({
             "error": "An error occurred",
-            "details": str(e)
+            "details": str(e),
+            "region": region
         }), 500
 
 if __name__ == '__main__':
